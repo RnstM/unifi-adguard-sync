@@ -5,7 +5,7 @@ Core sync logic — SyncResult dataclass, sync(), load_state(), save_state().
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -49,6 +49,8 @@ class SyncResult:
     rewrites_skipped: int = 0
     unifi_clients: int = 0
     adguard_clients: int = 0
+    # Per-client change details: {"action": "added"|"updated"|"removed", "name": str, "ip": str}
+    changes: list[dict] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -141,6 +143,7 @@ def sync(
     log.info("Found %d clients in AdGuard", len(adguard_clients))
 
     added = updated = skipped = removed = errors = 0
+    changes: list[dict] = []
     now_iso = datetime.now(timezone.utc).isoformat()
     unifi_ips = {c["ip"] for c in unifi_clients_for_sync}
 
@@ -162,6 +165,7 @@ def sync(
                         if not DRY_RUN:
                             log.info("Updated:  %s (%s) tags=%s", name, ip, tags)
                         updated += 1
+                        changes.append({"action": "updated", "name": name, "ip": ip})
                     else:
                         log.warning("Failed to update: %s (%s)", name, ip)
                         errors += 1
@@ -172,6 +176,7 @@ def sync(
                     if not DRY_RUN:
                         log.info("Added:    %s (%s) tags=%s", name, ip, tags)
                     added += 1
+                    changes.append({"action": "added", "name": name, "ip": ip})
                 else:
                     log.warning("Failed to add: %s (%s)", name, ip)
                     errors += 1
@@ -209,6 +214,9 @@ def sync(
                         )
                         state.pop(ip, None)
                         removed += 1
+                        changes.append(
+                            {"action": "removed", "name": adg_name, "ip": ip}
+                        )
                     else:
                         log.warning("Failed to remove stale: %s (%s)", adg_name, ip)
                         errors += 1
@@ -267,6 +275,7 @@ def sync(
         rewrites_skipped=rw_skipped,
         unifi_clients=len(unifi_clients),
         adguard_clients=len(adguard_clients),
+        changes=changes,
     )
 
     notify_sync(result)

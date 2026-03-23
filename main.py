@@ -71,17 +71,30 @@ app_state.load_history(METRICS_FILE)
 # ---------------------------------------------------------------------------
 # Sync daemon
 # ---------------------------------------------------------------------------
+_BACKOFF_BASE = 30  # seconds for first retry
+_BACKOFF_MAX = 300  # cap at 5 minutes
+
+
 def sync_daemon(stop: threading.Event) -> None:
     app_state._stop_event = stop
+    failure_count = 0
 
     while not stop.is_set():
-        # Wait for SYNC_INTERVAL, but can be interrupted by trigger_event
-        if app_state._trigger_event is not None:
-            app_state._trigger_event.wait(
-                timeout=SYNC_INTERVAL if SYNC_INTERVAL > 0 else None
+        # Exponential backoff on consecutive failures, capped at _BACKOFF_MAX
+        if failure_count > 0:
+            wait = min(_BACKOFF_BASE * (2 ** (failure_count - 1)), _BACKOFF_MAX)
+            log.info(
+                "Backing off %ds before next sync attempt (failure #%d)",
+                wait,
+                failure_count,
             )
         else:
-            stop.wait(SYNC_INTERVAL if SYNC_INTERVAL > 0 else None)
+            wait = SYNC_INTERVAL if SYNC_INTERVAL > 0 else None
+
+        if app_state._trigger_event is not None:
+            app_state._trigger_event.wait(timeout=wait)
+        else:
+            stop.wait(wait)
 
         if stop.is_set():
             break
@@ -110,8 +123,10 @@ def sync_daemon(stop: threading.Event) -> None:
                 save_state(state)
             app_state.record_sync(result)
             app_state.save_history(METRICS_FILE)
+            failure_count = 0  # reset backoff on success
         except Exception as exc:
-            log.error("Sync failed: %s", exc)
+            failure_count += 1
+            log.error("Sync failed (attempt %d): %s", failure_count, exc)
             from datetime import datetime, timezone
 
             from sync.notify import notify_sync
@@ -123,6 +138,7 @@ def sync_daemon(stop: threading.Event) -> None:
                 errors=1,
             )
             app_state.record_sync(result)
+            app_state.save_history(METRICS_FILE)
             notify_sync(result)
 
         if SYNC_INTERVAL == 0:

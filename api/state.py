@@ -109,7 +109,11 @@ class AppState:
             data = json.loads(path.read_text())
             with self._lock:
                 for item in data[-self.MAX_HISTORY :]:
-                    self.sync_history.append(SyncResult(**item))
+                    # Strip unknown keys for backwards compatibility
+                    known = {f.name for f in SyncResult.__dataclass_fields__.values()}  # type: ignore[attr-defined]
+                    self.sync_history.append(
+                        SyncResult(**{k: v for k, v in item.items() if k in known})
+                    )
         except Exception as exc:
             logging.getLogger(__name__).warning("Could not load metrics: %s", exc)
 
