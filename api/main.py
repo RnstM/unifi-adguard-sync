@@ -6,6 +6,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests as http_requests
 from fastapi import FastAPI
@@ -131,7 +132,7 @@ async def get_access() -> JSONResponse:
         return JSONResponse({"disallowed": data.get("disallowed_clients", [])})
     except Exception as exc:
         log.error("Failed to fetch AdGuard access list: %s", exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to fetch access list"}, status_code=500)
 
 
 @app.post("/api/access/block")
@@ -158,7 +159,7 @@ async def block_client(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": ok})
     except Exception as exc:
         log.error("Failed to block client %s: %s", ip, exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to block client"}, status_code=500)
 
 
 @app.post("/api/access/unblock")
@@ -183,7 +184,7 @@ async def unblock_client(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": ok})
     except Exception as exc:
         log.error("Failed to unblock client %s: %s", ip, exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to unblock client"}, status_code=500)
 
 
 @app.post("/api/rewrites/add")
@@ -202,7 +203,7 @@ async def api_add_rewrite(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": ok})
     except Exception as exc:
         log.error("Failed to add rewrite %s → %s: %s", domain, ip, exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to add rewrite"}, status_code=500)
 
 
 @app.post("/api/rewrites/update")
@@ -229,7 +230,7 @@ async def api_update_rewrite(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": ok})
     except Exception as exc:
         log.error("Failed to update rewrite: %s", exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to update rewrite"}, status_code=500)
 
 
 @app.post("/api/rewrites/delete")
@@ -248,7 +249,7 @@ async def api_delete_rewrite(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": ok})
     except Exception as exc:
         log.error("Failed to delete rewrite %s → %s: %s", domain, ip, exc)
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"error": "Failed to delete rewrite"}, status_code=500)
 
 
 @app.get("/api/config")
@@ -317,7 +318,13 @@ async def test_unifi(payload: dict) -> JSONResponse:
             {"ok": False, "message": f"HTTP {r.status_code}: {r.text[:120]}"}
         )
     except Exception as exc:
-        return JSONResponse({"ok": False, "message": str(exc)})
+        log.error("UniFi connection test failed: %s", exc)
+        return JSONResponse(
+            {
+                "ok": False,
+                "message": f"{type(exc).__name__}: {exc.args[0] if exc.args else 'Connection failed'}",
+            }
+        )
 
 
 @app.post("/api/test/adguard")
@@ -345,7 +352,13 @@ async def test_adguard(payload: dict) -> JSONResponse:
             )
         return JSONResponse({"ok": False, "message": f"HTTP {r.status_code}"})
     except Exception as exc:
-        return JSONResponse({"ok": False, "message": str(exc)})
+        log.error("AdGuard connection test failed: %s", exc)
+        return JSONResponse(
+            {
+                "ok": False,
+                "message": f"{type(exc).__name__}: {exc.args[0] if exc.args else 'Connection failed'}",
+            }
+        )
 
 
 @app.get("/api/config/export")
@@ -401,6 +414,17 @@ async def set_tag_override(payload: dict) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+def _validate_notify_url(url: str) -> str | None:
+    """Return an error message if the URL is not a safe http/https URL, else None."""
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return "Invalid URL"
+    if parsed.scheme not in ("http", "https"):
+        return "URL must use http or https"
+    return None
+
+
 @app.post("/api/test/notify")
 async def test_notify(payload: dict) -> JSONResponse:
     notify_type = payload.get("NOTIFY_TYPE", "discord")
@@ -413,6 +437,8 @@ async def test_notify(payload: dict) -> JSONResponse:
         url = payload.get("NOTIFY_URL", "")
         if not url:
             return JSONResponse({"ok": False, "message": "NOTIFY_URL is not set"})
+        if err := _validate_notify_url(url):
+            return JSONResponse({"ok": False, "message": err})
 
     title = "✅ UniFi AdGuard Sync — Test"
     message = "This is a test notification from your dashboard."
@@ -474,7 +500,13 @@ async def test_notify(payload: dict) -> JSONResponse:
             {"ok": True, "message": f"Test notification sent via {notify_type}"}
         )
     except Exception as exc:
-        return JSONResponse({"ok": False, "message": str(exc)})
+        log.error("Notification test failed: %s", exc)
+        return JSONResponse(
+            {
+                "ok": False,
+                "message": f"{type(exc).__name__}: {exc.args[0] if exc.args else 'Request failed'}",
+            }
+        )
 
 
 @app.get("/api/sync/excludes")
@@ -547,8 +579,9 @@ if static_dir.exists():
     # Catch-all: serve static file if it exists, otherwise return index.html for SPA routing
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        file_path = static_dir / full_path
-        if file_path.exists() and file_path.is_file():
+        resolved_root = static_dir.resolve()
+        file_path = (static_dir / full_path).resolve()
+        if file_path.is_relative_to(resolved_root) and file_path.is_file():
             return FileResponse(file_path)
         return Response(
             content=(static_dir / "index.html").read_bytes(), media_type="text/html"
