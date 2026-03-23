@@ -1,0 +1,25 @@
+# Credentials — never commit these
+.env
+.env.local
+k8s/secret.yaml
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# IDE
+.vscode/
+.idea/
+
+# Frontend
+dashboard/node_modules/
+dashboard/dist/
+
+# Local data (state, config, encryption key)
+data/

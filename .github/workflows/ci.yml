@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Syntax check
+        run: python -m py_compile main.py sync/config.py sync/core.py sync/adguard.py sync/unifi.py sync/tags.py api/main.py api/state.py api/config_store.py
+
+      - name: Lint (ruff)
+        run: ruff check main.py sync/ api/
+
+      - name: Format check (ruff)
+        run: ruff format --check main.py sync/ api/
