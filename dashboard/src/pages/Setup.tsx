@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, CheckCircle, ChevronRight, ChevronLeft, Wifi, Shield, Settings, Eye, EyeOff } from 'lucide-react';
-import { saveConfig, restartApp, testUnifi, testAdguard } from '../api';
+import { completeSetup, restartApp, testUnifi, testAdguard } from '../api';
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -421,7 +421,7 @@ export default function Setup() {
       setSaving(true);
       setSaveError('');
       try {
-        await saveConfig(cfg as unknown as Record<string, unknown>);
+        await completeSetup(cfg as unknown as Record<string, unknown>);
         setStep(4);
         setRestarting(true);
         await restartApp();
