@@ -1,7 +1,9 @@
 # Credentials — never commit these
 .env
 .env.local
-k8s/secret.yaml
+
+# Kubernetes manifests (local deployment only)
+k8s/
 
 # Python
 .venv/
