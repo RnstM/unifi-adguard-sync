@@ -461,7 +461,7 @@ export default function Overview() {
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
               {history.slice().reverse().slice(0, 5).map((r, i) => (
-                <SyncRow key={i} r={r} />
+                <SyncRow key={r.timestamp} r={r} />
               ))}
             </div>
           )}
