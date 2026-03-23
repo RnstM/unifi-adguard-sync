@@ -20,13 +20,16 @@ import {
   Play,
   Square,
   Clock,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
-import type { AppStatus, SyncResult, Client } from '../types';
+import type { AppStatus, HealthStatus, SyncResult, Client } from '../types';
 import {
   getStatus,
   getMetricsHistory,
   getClients,
   getAccess,
+  getHealth,
   triggerSync,
   stopSync,
   startSync,
@@ -100,6 +103,88 @@ function DistributionList({
   );
 }
 
+// ── Sync row with expandable change list ───────────────────────────────────
+function SyncRow({ r }: { r: SyncResult }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasChanges = r.clients_added + r.clients_updated + r.clients_removed > 0;
+  const hasRwChanges = r.rewrites_added + r.rewrites_removed > 0;
+  const changeDetails = r.changes ?? [];
+  const expandable = changeDetails.length > 0;
+
+  return (
+    <>
+      <div
+        className={`flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30 ${expandable ? 'cursor-pointer' : ''}`}
+        onClick={() => expandable && setExpanded((x) => !x)}
+      >
+        <span className={`w-2 h-2 rounded-full shrink-0 ${r.success ? 'bg-green-500' : 'bg-red-500'}`} />
+
+        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap w-32 shrink-0">
+          {formatDateTime(r.timestamp)}
+        </span>
+
+        <span className="text-xs tabular-nums space-x-1 flex-1">
+          {hasChanges ? (
+            <>
+              {r.clients_added > 0 && <span className="text-green-600 dark:text-green-400">+{r.clients_added}</span>}
+              {r.clients_updated > 0 && <span className="text-blue-600 dark:text-blue-400"> ~{r.clients_updated}</span>}
+              {r.clients_removed > 0 && <span className="text-orange-500 dark:text-orange-400"> -{r.clients_removed}</span>}
+              {' '}<span className="text-gray-400 dark:text-gray-500">clients</span>
+            </>
+          ) : hasRwChanges ? (
+            <>
+              {r.rewrites_added > 0 && <span className="text-green-600 dark:text-green-400">+{r.rewrites_added} rewrites</span>}
+              {r.rewrites_removed > 0 && <span className="text-orange-500 dark:text-orange-400"> -{r.rewrites_removed} rewrites</span>}
+            </>
+          ) : (
+            <span className="text-gray-400 dark:text-gray-500">no changes</span>
+          )}
+        </span>
+
+        {r.errors > 0 && (
+          <span className="text-xs text-red-500 dark:text-red-400 shrink-0">{r.errors} err</span>
+        )}
+
+        <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${
+          r.success
+            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+            : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+        }`}>
+          {r.success ? 'OK' : 'FAIL'}
+        </span>
+
+        {expandable && (
+          expanded
+            ? <ChevronDown className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+            : <ChevronRight className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+        )}
+      </div>
+
+      {expanded && changeDetails.length > 0 && (
+        <div className="px-5 pb-2.5 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700">
+          <div className="pt-2 space-y-1">
+            {changeDetails.map((c, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                  c.action === 'added' ? 'bg-green-500' :
+                  c.action === 'updated' ? 'bg-blue-500' : 'bg-orange-500'
+                }`} />
+                <span className={`w-14 font-medium shrink-0 ${
+                  c.action === 'added' ? 'text-green-600 dark:text-green-400' :
+                  c.action === 'updated' ? 'text-blue-600 dark:text-blue-400' :
+                  'text-orange-500 dark:text-orange-400'
+                }`}>{c.action}</span>
+                <span className="text-gray-700 dark:text-gray-300 font-medium">{c.name}</span>
+                <span className="text-gray-400 dark:text-gray-500 font-mono">{c.ip}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── Main page ──────────────────────────────────────────────────────────────
 export default function Overview() {
   const [status, setStatus] = useState<AppStatus | null>(null);
@@ -108,6 +193,7 @@ export default function Overview() {
   const [blockedCount, setBlockedCount] = useState(0);
   const [syncLoading, setSyncLoading] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -126,6 +212,16 @@ export default function Overview() {
     const id = setInterval(refresh, 10_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try { setHealth(await getHealth()); }
+      catch { setHealth({ adguard: false, unifi: false }); }
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Sync controls state
   const syncEnabled = status?.sync_enabled ?? true;
@@ -246,6 +342,29 @@ export default function Overview() {
       <div className="flex flex-wrap items-center gap-2.5 justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Overview</h1>
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Service health indicators */}
+          {(['unifi', 'adguard'] as const).map((svc) => {
+            const ok = health?.[svc];
+            return (
+              <span
+                key={svc}
+                title={`${svc === 'unifi' ? 'UniFi' : 'AdGuard'}: ${ok === undefined ? 'checking…' : ok ? 'reachable' : 'unreachable'}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                  ok === undefined
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
+                    : ok
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  ok === undefined ? 'bg-gray-300 dark:bg-gray-600' :
+                  ok ? 'bg-green-500' : 'bg-red-500'
+                }`} />
+                {svc === 'unifi' ? 'UniFi' : 'AdGuard'}
+              </span>
+            );
+          })}
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
             syncEnabled
               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
@@ -376,57 +495,9 @@ export default function Overview() {
             <p className="px-5 py-6 text-xs text-center text-gray-400 dark:text-gray-500">No sync history yet</p>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-700">
-              {history.slice().reverse().slice(0, 5).map((r, i) => {
-                const hasChanges = r.clients_added + r.clients_updated + r.clients_removed > 0;
-                const hasRwChanges = r.rewrites_added + r.rewrites_removed > 0;
-                return (
-                  <div key={i} className="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                    {/* Status dot */}
-                    <span className={`w-2 h-2 rounded-full shrink-0 ${r.success ? 'bg-green-500' : 'bg-red-500'}`} />
-
-                    {/* Time */}
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap w-32 shrink-0">
-                      {formatDateTime(r.timestamp)}
-                    </span>
-
-                    {/* Client changes */}
-                    <span className="text-xs tabular-nums space-x-1 flex-1">
-                      {hasChanges ? (
-                        <>
-                          {r.clients_added > 0 && <span className="text-green-600 dark:text-green-400">+{r.clients_added}</span>}
-                          {r.clients_updated > 0 && <span className="text-blue-600 dark:text-blue-400"> ~{r.clients_updated}</span>}
-                          {r.clients_removed > 0 && <span className="text-orange-500 dark:text-orange-400"> -{r.clients_removed}</span>}
-                          {' '}
-                          <span className="text-gray-400 dark:text-gray-500">clients</span>
-                        </>
-                      ) : hasRwChanges ? (
-                        <>
-                          {r.rewrites_added > 0 && <span className="text-green-600 dark:text-green-400">+{r.rewrites_added} rewrites</span>}
-                          {r.rewrites_removed > 0 && <span className="text-orange-500 dark:text-orange-400"> -{r.rewrites_removed} rewrites</span>}
-                        </>
-                      ) : (
-                        <span className="text-gray-400 dark:text-gray-500">no changes</span>
-                      )}
-                    </span>
-
-                    {/* Errors */}
-                    {r.errors > 0 && (
-                      <span className="text-xs text-red-500 dark:text-red-400 shrink-0">
-                        {r.errors} err
-                      </span>
-                    )}
-
-                    {/* Status badge */}
-                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium shrink-0 ${
-                      r.success
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-                    }`}>
-                      {r.success ? 'OK' : 'FAIL'}
-                    </span>
-                  </div>
-                );
-              })}
+              {history.slice().reverse().slice(0, 5).map((r, i) => (
+                <SyncRow key={r.timestamp} r={r} />
+              ))}
             </div>
           )}
         </div>

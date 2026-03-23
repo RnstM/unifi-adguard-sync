@@ -22,8 +22,8 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install dependencies
+        run: pip install ruff pytest -r requirements.txt
 
       - name: Syntax check
         run: python -m py_compile main.py sync/config.py sync/core.py sync/adguard.py sync/unifi.py sync/tags.py api/main.py api/state.py api/config_store.py
@@ -33,6 +33,9 @@ jobs:
 
       - name: Format check
         run: ruff format --check main.py sync/ api/
+
+      - name: Tests
+        run: python -m pytest tests/ -v
 
   frontend:
     name: Frontend build

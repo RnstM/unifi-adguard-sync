@@ -1,3 +1,9 @@
+export interface SyncChange {
+  action: 'added' | 'updated' | 'removed';
+  name: string;
+  ip: string;
+}
+
 export interface SyncResult {
   timestamp: string;
   success: boolean;
@@ -13,6 +19,7 @@ export interface SyncResult {
   rewrites_skipped: number;
   unifi_clients: number;
   adguard_clients: number;
+  changes?: SyncChange[];
 }
 
 export interface AppStatus {
@@ -48,4 +55,9 @@ export interface Client {
 export interface Rewrite {
   domain: string;
   ip: string;
+}
+
+export interface HealthStatus {
+  adguard: boolean;
+  unifi: boolean;
 }

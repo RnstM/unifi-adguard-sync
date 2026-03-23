@@ -1,9 +1,12 @@
-import type { AppStatus, Client, Rewrite, SyncResult } from './types';
+import type { AppStatus, Client, HealthStatus, Rewrite, SyncResult } from './types';
 
 const BASE = '/api';
 
 export const getStatus = (): Promise<AppStatus> =>
   fetch(`${BASE}/status`).then((r) => r.json());
+
+export const getHealth = (): Promise<HealthStatus> =>
+  fetch(`${BASE}/health`).then((r) => r.json());
 
 export const getClients = (): Promise<Client[]> =>
   fetch(`${BASE}/clients`).then((r) => r.json());
