@@ -612,6 +612,22 @@ async def clear_tag_override(payload: dict) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/setup/status")
+async def setup_status() -> JSONResponse:
+    """Returns whether initial setup is required (no config file or missing credentials)."""
+    from api.config_store import CONFIG_FILE, load_config
+
+    if not CONFIG_FILE.exists():
+        return JSONResponse({"needs_setup": True})
+    cfg = load_config()
+    if not cfg or not cfg.get("UNIFI_HOST") or not cfg.get("ADGUARD_HOST"):
+        return JSONResponse({"needs_setup": True})
+    # Treat default placeholder values as unconfigured
+    if cfg.get("UNIFI_HOST") == "https://192.168.1.1" and not cfg.get("UNIFI_USER"):
+        return JSONResponse({"needs_setup": True})
+    return JSONResponse({"needs_setup": False})
+
+
 @app.get("/healthz")
 async def healthz() -> JSONResponse:
     status = app_state.get_status()
