@@ -56,3 +56,8 @@ export interface Rewrite {
   domain: string;
   ip: string;
 }
+
+export interface HealthStatus {
+  adguard: boolean;
+  unifi: boolean;
+}

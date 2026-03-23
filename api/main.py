@@ -9,10 +9,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import requests as http_requests
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from api.config_store import (
     MASKED,
@@ -34,6 +37,10 @@ APP_VERSION = os.environ.get("APP_VERSION") or (
 
 app = FastAPI(title="UniFi AdGuard Sync Dashboard", version=APP_VERSION)
 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # CORS — self-hosted tool, frontend is served from the same origin in production.
 # Wildcard is intentional to support local dev (Vite on a different port).
 app.add_middleware(
@@ -53,6 +60,43 @@ async def get_status() -> JSONResponse:
     status["sync_interval"] = SYNC_INTERVAL
     status["version"] = APP_VERSION
     return JSONResponse(status)
+
+
+@app.get("/api/health")
+async def get_health() -> JSONResponse:
+    """Check connectivity to UniFi and AdGuard. Used by the dashboard header."""
+    import os
+
+    adguard_ok = False
+    unifi_ok = False
+
+    try:
+        r = http_requests.get(
+            f"{os.environ.get('ADGUARD_HOST', '')}/control/status",
+            auth=(
+                os.environ.get("ADGUARD_USER", ""),
+                os.environ.get("ADGUARD_PASS", ""),
+            ),
+            timeout=5,
+        )
+        adguard_ok = r.status_code == 200
+    except Exception:
+        pass
+
+    try:
+        host = os.environ.get("UNIFI_HOST", "")
+        verify_ssl = os.environ.get("UNIFI_VERIFY_SSL", "false").lower() == "true"
+        r = http_requests.get(
+            f"{host}/api/auth/login",
+            verify=verify_ssl,
+            timeout=5,
+        )
+        # login page reachable = controller is up (any HTTP response counts)
+        unifi_ok = r.status_code in (200, 400, 401, 404)
+    except Exception:
+        pass
+
+    return JSONResponse({"adguard": adguard_ok, "unifi": unifi_ok})
 
 
 @app.get("/api/clients")
@@ -103,7 +147,8 @@ async def get_logs() -> JSONResponse:
 
 
 @app.post("/api/sync/trigger")
-async def trigger_sync() -> JSONResponse:
+@limiter.limit("10/minute")
+async def trigger_sync(request: Request) -> JSONResponse:
     log.info("Sync triggered manually via dashboard")
     app_state.trigger_sync()
     return JSONResponse({"ok": True})
@@ -272,7 +317,8 @@ async def post_config(payload: dict) -> JSONResponse:
 
 
 @app.post("/api/restart")
-async def restart_app() -> JSONResponse:
+@limiter.limit("5/minute")
+async def restart_app(request: Request) -> JSONResponse:
     """Replace the running process with a fresh copy to apply new config."""
     import os
     import sys
@@ -289,7 +335,8 @@ async def restart_app() -> JSONResponse:
 
 
 @app.post("/api/test/unifi")
-async def test_unifi(payload: dict) -> JSONResponse:
+@limiter.limit("10/minute")
+async def test_unifi(request: Request, payload: dict) -> JSONResponse:
     from api.config_store import MASKED, current_config
 
     host = payload.get("UNIFI_HOST", "")
@@ -328,7 +375,8 @@ async def test_unifi(payload: dict) -> JSONResponse:
 
 
 @app.post("/api/test/adguard")
-async def test_adguard(payload: dict) -> JSONResponse:
+@limiter.limit("10/minute")
+async def test_adguard(request: Request, payload: dict) -> JSONResponse:
     from api.config_store import MASKED, current_config
 
     host = payload.get("ADGUARD_HOST", "")
@@ -426,7 +474,8 @@ def _validate_notify_url(url: str) -> str | None:
 
 
 @app.post("/api/test/notify")
-async def test_notify(payload: dict) -> JSONResponse:
+@limiter.limit("10/minute")
+async def test_notify(request: Request, payload: dict) -> JSONResponse:
     notify_type = payload.get("NOTIFY_TYPE", "discord")
     if notify_type == "telegram":
         token = payload.get("NOTIFY_TOKEN", "")

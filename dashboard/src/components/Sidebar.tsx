@@ -8,6 +8,8 @@ import {
   Settings,
 } from 'lucide-react';
 import ThemeToggle from './ThemeToggle';
+import { getHealth } from '../api';
+import type { HealthStatus } from '../types';
 
 const navItems = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, exact: true },
@@ -16,14 +18,40 @@ const navItems = [
   { to: '/config', label: 'Configuration', icon: Settings },
 ];
 
+function ServiceDot({ ok, label }: { ok: boolean | null; label: string }) {
+  return (
+    <div className="flex items-center gap-1.5" title={`${label}: ${ok === null ? 'checking…' : ok ? 'reachable' : 'unreachable'}`}>
+      <span className={`w-2 h-2 rounded-full shrink-0 ${
+        ok === null ? 'bg-gray-300 dark:bg-gray-600' :
+        ok ? 'bg-green-500' : 'bg-red-500'
+      }`} />
+      <span className="text-xs text-gray-400 dark:text-gray-500">{label}</span>
+    </div>
+  );
+}
+
 export default function Sidebar() {
   const [version, setVersion] = useState<string>('');
+  const [health, setHealth] = useState<HealthStatus | null>(null);
 
   useEffect(() => {
     fetch('/api/status')
       .then((r) => r.json())
       .then((d) => setVersion(d.version ?? ''))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        setHealth(await getHealth());
+      } catch {
+        setHealth({ adguard: false, unifi: false });
+      }
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
   }, []);
 
   return (
@@ -59,6 +87,12 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
+
+      {/* Health indicators */}
+      <div className="hidden md:flex flex-col gap-1.5 px-3 pb-3">
+        <ServiceDot ok={health?.unifi ?? null} label="UniFi" />
+        <ServiceDot ok={health?.adguard ?? null} label="AdGuard" />
+      </div>
 
       {/* Footer: theme toggle + version/github */}
       <div className="px-2 pb-4 space-y-3">
