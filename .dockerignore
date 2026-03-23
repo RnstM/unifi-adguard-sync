@@ -6,13 +6,6 @@ __pycache__/
 k8s/
 data/
 dashboard/node_modules/
-dashboard/src/
-dashboard/index.html
-dashboard/package*.json
-dashboard/tsconfig.json
-dashboard/vite.config.ts
-dashboard/postcss.config.js
-dashboard/tailwind.config.js
 README.md
 CHANGELOG.md
 .github/
