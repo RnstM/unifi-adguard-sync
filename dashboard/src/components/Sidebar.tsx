@@ -68,7 +68,7 @@ export default function Sidebar() {
         </div>
         <div className="hidden md:flex items-center justify-between px-1 pt-3 border-t border-gray-100 dark:border-gray-800">
           <span className="text-xs text-gray-400 dark:text-gray-600">
-            {version ? (version === 'dev' ? 'dev' : `v${version}`) : '—'}
+            {version ? (version === 'dev' ? 'dev' : `v${version.replace(/^v/, '')}`) : '—'}
           </span>
           <a
             href="https://github.com/RnstM/unifi-adguard-sync"
