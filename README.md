@@ -5,8 +5,6 @@
 
 Automatically syncs clients from a **UniFi Controller** to **AdGuard Home** — with smart device/OS tag detection, DNS rewrite sync, and a built-in web dashboard to manage everything.
 
-![Dashboard screenshot placeholder](https://github.com/user-attachments/assets/placeholder)
-
 ---
 
 ## Features
@@ -48,6 +46,22 @@ Automatically syncs clients from a **UniFi Controller** to **AdGuard Home** — 
 - All persistent data in `/data` (easy volume mount)
 - Config and credentials stored encrypted in `/data/config.json`
 - Multi-arch: `linux/amd64` + `linux/arm64`
+
+---
+
+## Screenshots
+
+![Overview](https://github.com/user-attachments/assets/overview-placeholder)
+*Overview — sync metrics, client coverage, and recent sync history*
+
+![Clients](https://github.com/user-attachments/assets/clients-placeholder)
+*Clients — search, filter by VLAN/device type, bulk actions*
+
+![Client modal](https://github.com/user-attachments/assets/client-modal-placeholder)
+*Per-client modal — block/unblock, DNS rewrites, tag override, sync exclusion*
+
+![Config](https://github.com/user-attachments/assets/config-placeholder)
+*Configuration — all settings editable in the UI*
 
 ---
 
