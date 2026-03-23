@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, CheckCircle, ChevronRight, ChevronLeft, Wifi, Shield, Settings, Eye, EyeOff } from 'lucide-react';
-import { saveConfig, startSync, testUnifi, testAdguard } from '../api';
+import { saveConfig, restartApp, testUnifi, testAdguard } from '../api';
 
 type Step = 0 | 1 | 2 | 3 | 4;
 
@@ -359,7 +359,7 @@ function StepSync({ cfg, setCfg }: { cfg: WizardConfig; setCfg: React.Dispatch<R
   );
 }
 
-function StepDone() {
+function StepDone({ restarting }: { restarting: boolean }) {
   return (
     <div className="text-center space-y-6 py-4">
       <div className="mx-auto w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
@@ -368,9 +368,16 @@ function StepDone() {
       <div className="space-y-2">
         <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">All set!</h2>
         <p className="text-gray-500 dark:text-gray-400 text-sm max-w-sm mx-auto leading-relaxed">
-          Your configuration has been saved. The first sync will run shortly.
+          {restarting
+            ? 'Starting sync daemon… redirecting to the dashboard shortly.'
+            : 'Your configuration has been saved and the sync daemon is starting.'}
         </p>
       </div>
+      {restarting && (
+        <div className="flex justify-center">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
     </div>
   );
 }
@@ -384,6 +391,7 @@ export default function Setup() {
   const [step, setStep] = useState<Step>(0);
   const [cfg, setCfg] = useState<WizardConfig>(DEFAULT);
   const [saving, setSaving] = useState(false);
+  const [restarting, setRestarting] = useState(false);
   const [saveError, setSaveError] = useState('');
 
   const isLast = step === 4;
@@ -394,17 +402,33 @@ export default function Setup() {
     return true;
   };
 
+  const pollUntilUp = () => {
+    const start = Date.now();
+    const poll = () => {
+      fetch('/api/setup/status')
+        .then((r) => r.json())
+        .then(() => navigate('/', { replace: true }))
+        .catch(() => {
+          if (Date.now() - start < 30000) setTimeout(poll, 1000);
+        });
+    };
+    setTimeout(poll, 1500); // give the process a moment to exit first
+  };
+
   const handleNext = async () => {
     if (step === 3) {
-      // Save config and start sync
+      // Save config then restart so the sync daemon starts with the new config
       setSaving(true);
       setSaveError('');
       try {
         await saveConfig(cfg as unknown as Record<string, unknown>);
-        await startSync();
         setStep(4);
+        setRestarting(true);
+        await restartApp();
+        pollUntilUp();
       } catch {
         setSaveError('Failed to save configuration. Please try again.');
+        setStep(3);
       } finally {
         setSaving(false);
       }
@@ -452,7 +476,7 @@ export default function Setup() {
           {step === 1 && <StepUnifi cfg={cfg} setCfg={setCfg} />}
           {step === 2 && <StepAdguard cfg={cfg} setCfg={setCfg} />}
           {step === 3 && <StepSync cfg={cfg} setCfg={setCfg} />}
-          {step === 4 && <StepDone />}
+          {step === 4 && <StepDone restarting={restarting} />}
 
           {saveError && (
             <p className="mt-4 text-sm text-red-600 dark:text-red-400 text-center">{saveError}</p>
@@ -470,12 +494,14 @@ export default function Setup() {
               </button>
             )}
             {isLast ? (
-              <button
-                onClick={() => navigate('/')}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-              >
-                Go to dashboard
-              </button>
+              !restarting && (
+                <button
+                  onClick={() => navigate('/')}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  Go to dashboard
+                </button>
+              )
             ) : (
               <button
                 onClick={handleNext}

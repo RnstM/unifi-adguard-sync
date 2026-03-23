@@ -177,12 +177,26 @@ if DNS_REWRITE_ENABLED:
     else:
         log.warning("DNS_REWRITE_ENABLED=true but DNS_REWRITE_DOMAIN is not set")
 
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
+def _needs_setup() -> bool:
+    """Return True when no valid config exists (mirrors /api/setup/status logic)."""
+    from api.config_store import CONFIG_FILE, load_config as _lc
+
+    if not CONFIG_FILE.exists():
+        return True
+    cfg = _lc()
+    if not cfg or not cfg.get("UNIFI_HOST") or not cfg.get("ADGUARD_HOST"):
+        return True
+    if cfg.get("UNIFI_HOST") == "https://192.168.1.1" and not cfg.get("UNIFI_USER"):
+        return True
+    return False
+
+
 stop = threading.Event()
 app_state._trigger_event = threading.Event()
-app_state._trigger_event.set()  # trigger immediately on startup
 
 
 def handle_signal(signum: int, _frame) -> None:
@@ -193,11 +207,17 @@ def handle_signal(signum: int, _frame) -> None:
 signal.signal(signal.SIGTERM, handle_signal)
 signal.signal(signal.SIGINT, handle_signal)
 
-# Start sync daemon
-sync_thread = threading.Thread(
-    target=sync_daemon, args=(stop,), daemon=True, name="sync"
-)
-sync_thread.start()
+if _needs_setup():
+    log.info(
+        "No configuration found — skipping sync daemon, open the dashboard to complete setup"
+    )
+else:
+    app_state._trigger_event.set()  # trigger immediately on startup
+    sync_thread = threading.Thread(
+        target=sync_daemon, args=(stop,), daemon=True, name="sync"
+    )
+    sync_thread.start()
+    log.info("Starting sync (interval=%ds)", SYNC_INTERVAL)
 
 # Start uvicorn (non-blocking)
 uvicorn_config = uvicorn.Config(
@@ -209,7 +229,6 @@ uvicorn_thread = threading.Thread(target=server.run, daemon=True, name="uvicorn"
 uvicorn_thread.start()
 
 log.info("Dashboard listening on :%d", DASHBOARD_PORT)
-log.info("Starting sync (interval=%ds)", SYNC_INTERVAL)
 
 stop.wait()
 server.should_exit = True
