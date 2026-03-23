@@ -10,6 +10,16 @@ updates:
       python-deps:
         patterns: ["*"]
 
+  # Frontend (npm) dependencies
+  - package-ecosystem: npm
+    directory: /dashboard
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      npm-deps:
+        patterns: ["*"]
+
   # Docker base image
   - package-ecosystem: docker
     directory: /

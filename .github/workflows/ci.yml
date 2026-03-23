@@ -9,29 +9,71 @@ on:
       - main
 
 jobs:
-  validate:
+  python:
+    name: Python lint & format
     runs-on: ubuntu-latest
     permissions:
       contents: read
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: pip
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt ruff
+      - name: Install ruff
+        run: pip install ruff
 
       - name: Syntax check
         run: python -m py_compile main.py sync/config.py sync/core.py sync/adguard.py sync/unifi.py sync/tags.py api/main.py api/state.py api/config_store.py
 
-      - name: Lint (ruff)
+      - name: Lint
         run: ruff check main.py sync/ api/
 
-      - name: Format check (ruff)
+      - name: Format check
         run: ruff format --check main.py sync/ api/
+
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: dashboard
+
+      - name: Build
+        run: npm run build
+        working-directory: dashboard
+
+  docker:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: [python, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
