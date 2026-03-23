@@ -3,8 +3,14 @@ Configuration — all env var constants for unifi-adguard-sync.
 """
 
 import os
-from pathlib import Path
+from pathlib import Path as _Path
 
+_PROJECT_ROOT = _Path(__file__).parent.parent
+_default_state = (
+    "/data/state.json"
+    if _Path("/data").exists()
+    else str(_PROJECT_ROOT / "data" / "state.json")
+)
 UNIFI_HOST = os.environ.get("UNIFI_HOST", "https://192.168.1.1")
 UNIFI_USER = os.environ.get("UNIFI_USER", "")
 UNIFI_PASS = os.environ.get("UNIFI_PASS", "")
@@ -31,7 +37,7 @@ EXCLUDE_VLANS: frozenset[int] = frozenset(
 
 # Stale client cleanup
 STALE_AFTER_DAYS = int(os.environ.get("STALE_AFTER_DAYS", "0"))
-STATE_FILE = Path(os.environ.get("STATE_FILE", "/data/state.json"))
+STATE_FILE = _Path(os.environ.get("STATE_FILE", _default_state))
 METRICS_FILE = STATE_FILE.parent / "metrics.json"
 
 # DNS rewrite sync

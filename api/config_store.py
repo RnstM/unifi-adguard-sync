@@ -12,7 +12,13 @@ import os
 from pathlib import Path
 from typing import Any
 
-_state_file = os.environ.get("STATE_FILE", "/data/state.json")
+_PROJECT_ROOT = Path(__file__).parent.parent
+_default_state = (
+    "/data/state.json"
+    if Path("/data").exists()
+    else str(_PROJECT_ROOT / "data" / "state.json")
+)
+_state_file = os.environ.get("STATE_FILE", _default_state)
 DATA_DIR = Path(_state_file).parent
 CONFIG_FILE = DATA_DIR / "config.json"
 KEY_FILE = DATA_DIR / ".secret_key"

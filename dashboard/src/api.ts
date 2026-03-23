@@ -139,6 +139,16 @@ export const clearTagOverride = (ip: string): Promise<{ ok: boolean }> =>
     body: JSON.stringify({ ip }),
   }).then((r) => r.json());
 
+export const getSetupStatus = (): Promise<{ needs_setup: boolean }> =>
+  fetch(`${BASE}/setup/status`).then((r) => r.json());
+
+export const completeSetup = (config: Record<string, unknown>): Promise<{ ok: boolean }> =>
+  fetch(`${BASE}/setup/complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(config),
+  }).then((r) => r.json());
+
 export const getSyncExcludes = (): Promise<string[]> =>
   fetch(`${BASE}/sync/excludes`).then((r) => r.json());
 
