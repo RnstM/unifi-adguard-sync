@@ -25,3 +25,4 @@ dashboard/dist/
 
 # Local data (state, config, encryption key)
 data/
+demo_clients.js
