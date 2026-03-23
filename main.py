@@ -96,13 +96,14 @@ def sync_daemon(stop: threading.Event) -> None:
             # sync_excludes) that happened while sync was running, then merge:
             # API-managed keys come from disk, sync-managed keys (IP timestamps)
             # come from the sync result.
-            disk_state = load_state()
-            for api_key in ("tag_overrides", "sync_excludes"):
-                if api_key in disk_state:
-                    state[api_key] = disk_state[api_key]
-                else:
-                    state.pop(api_key, None)
-            save_state(state)
+            if not DRY_RUN:
+                disk_state = load_state()
+                for api_key in ("tag_overrides", "sync_excludes"):
+                    if api_key in disk_state:
+                        state[api_key] = disk_state[api_key]
+                    else:
+                        state.pop(api_key, None)
+                save_state(state)
             app_state.record_sync(result)
         except Exception as exc:
             log.error("Sync failed: %s", exc)

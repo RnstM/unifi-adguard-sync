@@ -10,7 +10,7 @@ from pathlib import Path
 import requests as http_requests
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from api.config_store import (
@@ -515,10 +515,12 @@ async def healthz() -> JSONResponse:
 # ---------------------------------------------------------------------------
 static_dir = Path(__file__).parent.parent / "dashboard" / "dist"
 if static_dir.exists():
-    # Catch-all: serve index.html for any non-API path so SPA routing works on refresh
+    # Catch-all: serve static file if it exists, otherwise return index.html for SPA routing
     @app.get("/{full_path:path}", include_in_schema=False)
     async def spa_fallback(full_path: str):
-        index = static_dir / "index.html"
-        return Response(content=index.read_bytes(), media_type="text/html")
+        file_path = static_dir / full_path
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        return Response(content=(static_dir / "index.html").read_bytes(), media_type="text/html")
 
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
