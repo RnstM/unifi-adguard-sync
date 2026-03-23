@@ -244,9 +244,10 @@ def sync(
     # DNS rewrites
     rw_added = rw_updated = rw_removed = rw_skipped = 0
     if DNS_REWRITE_ENABLED:
-        state, rw_added, rw_updated, rw_removed, rw_skipped = sync_dns_rewrites(
-            unifi_clients, state, sync_excludes=sync_excludes
+        state, rw_added, rw_updated, rw_removed, rw_skipped, rw_changes = (
+            sync_dns_rewrites(unifi_clients, state, sync_excludes=sync_excludes)
         )
+        changes.extend(rw_changes)
         # Build rewrite list for dashboard
         desired_rewrites = state.get("dns_rewrites", {})
         rewrite_list = [

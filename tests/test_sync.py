@@ -32,7 +32,7 @@ def _run_sync(unifi_clients, adguard_clients, state=None):
         patch("sync.core.adguard_update_client", return_value=True) as mock_update,
         patch("sync.core.adguard_remove_client", return_value=True) as mock_remove,
         patch("sync.core.notify_sync"),
-        patch("sync.core.sync_dns_rewrites", return_value=({}, 0, 0, 0, 0)),
+        patch("sync.core.sync_dns_rewrites", return_value=({}, 0, 0, 0, 0, [])),
         patch("sync.core.DNS_REWRITE_ENABLED", False),
     ):
         new_state, result = sync(state or {})

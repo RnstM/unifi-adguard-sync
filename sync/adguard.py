@@ -198,19 +198,19 @@ def _to_dns_label(name: str) -> str | None:
 
 def sync_dns_rewrites(
     clients: list[dict], state: dict, sync_excludes: set[str] | None = None
-) -> tuple[dict, int, int, int, int]:
+) -> tuple[dict, int, int, int, int, list[dict]]:
     """
     Sync DNS rewrites from UniFi clients to AdGuard Home.
-    Returns (state, added, updated, removed, skipped).
+    Returns (state, added, updated, removed, skipped, changes).
     """
     if not DNS_REWRITE_ENABLED:
-        return state, 0, 0, 0, 0
+        return state, 0, 0, 0, 0, []
 
     if not DNS_REWRITE_DOMAIN:
         log.warning(
             "DNS_REWRITE_ENABLED=true but DNS_REWRITE_DOMAIN is not set — skipping"
         )
-        return state, 0, 0, 0, 0
+        return state, 0, 0, 0, 0, []
 
     _sync_excludes: set[str] = sync_excludes or set()
     current_rewrites = adguard_get_rewrites()
@@ -266,6 +266,7 @@ def sync_dns_rewrites(
         desired[fqdn] = client["ip"]
 
     added = updated = removed = skipped = 0
+    rw_changes: list[dict] = []
 
     # Add / update
     for fqdn, ip in desired.items():
@@ -276,6 +277,7 @@ def sync_dns_rewrites(
                     if not DRY_RUN:
                         log.info("Rewrite updated: %s → %s", fqdn, ip)
                     updated += 1
+                    rw_changes.append({"action": "updated", "name": fqdn, "ip": ip})
             else:
                 skipped += 1
         elif fqdn in managed_rewrites:
@@ -288,6 +290,7 @@ def sync_dns_rewrites(
                 if not DRY_RUN:
                     log.info("Rewrite added:   %s → %s", fqdn, ip)
                 added += 1
+                rw_changes.append({"action": "added", "name": fqdn, "ip": ip})
 
     # Remove rewrites we manage that are no longer in UniFi
     for fqdn, ip in list(managed_rewrites.items()):
@@ -298,6 +301,7 @@ def sync_dns_rewrites(
                 if not DRY_RUN:
                     log.info("Rewrite removed: %s (no longer in UniFi)", fqdn)
                 removed += 1
+                rw_changes.append({"action": "removed", "name": fqdn, "ip": ip})
 
     state["dns_rewrites"] = desired
     log.info(
@@ -307,4 +311,4 @@ def sync_dns_rewrites(
         removed,
         skipped,
     )
-    return state, added, updated, removed, skipped
+    return state, added, updated, removed, skipped, rw_changes
