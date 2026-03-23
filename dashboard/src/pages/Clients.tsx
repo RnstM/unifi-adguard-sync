@@ -28,9 +28,11 @@ import {
   ShieldCheck,
   EyeOff,
   Eye,
+  Pencil,
+  Save,
 } from 'lucide-react';
 import type { Client, Rewrite } from '../types';
-import { getClients, getRewrites, getAccess, blockClient, unblockClient, addRewrite, deleteRewrite, getTagOverrides, setTagOverride, clearTagOverride, getSyncExcludes, excludeFromSync, includeInSync } from '../api';
+import { getClients, getRewrites, getAccess, blockClient, unblockClient, addRewrite, deleteRewrite, updateRewrite, getTagOverrides, setTagOverride, clearTagOverride, getSyncExcludes, excludeFromSync, includeInSync } from '../api';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 function formatUptime(seconds: number): string {
@@ -151,6 +153,9 @@ function ClientModal({ client, rewrites, isBlocked, isExcluded, tagOverride, onC
   const [newDomain, setNewDomain] = useState('');
   const [addingRewrite, setAddingRewrite] = useState(false);
   const [deletingDomain, setDeletingDomain] = useState<string | null>(null);
+  const [editingDomain, setEditingDomain] = useState<string | null>(null);
+  const [editDomainValue, setEditDomainValue] = useState('');
+  const [savingDomain, setSavingDomain] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [overrideDevice, setOverrideDevice] = useState('');
@@ -293,6 +298,22 @@ function ClientModal({ client, rewrites, isBlocked, isExcluded, tagOverride, onC
       setActionError(String(e));
     } finally {
       setSavingOverride(false);
+    }
+  };
+
+  const handleEditRewrite = async (oldDomain: string) => {
+    const newDomainVal = editDomainValue.trim();
+    if (!newDomainVal || newDomainVal === oldDomain) { setEditingDomain(null); return; }
+    setSavingDomain(true);
+    setActionError(null);
+    try {
+      const res = await updateRewrite(oldDomain, client!.ip, newDomainVal, client!.ip);
+      if (!res.ok) setActionError((res as any).error ?? 'Failed to update rewrite');
+      else { setEditingDomain(null); await onRefresh(); }
+    } catch (e) {
+      setActionError(String(e));
+    } finally {
+      setSavingDomain(false);
     }
   };
 
@@ -442,13 +463,38 @@ function ClientModal({ client, rewrites, isBlocked, isExcluded, tagOverride, onC
               <div className="space-y-1.5">
                 {rewrites.map((fqdn) => (
                   <div key={fqdn} className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-800/40">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                      <span className="text-sm font-mono text-green-700 dark:text-green-400 truncate">{fqdn}</span>
-                    </div>
-                    <button onClick={() => handleDeleteRewrite(fqdn)} disabled={deletingDomain === fqdn} className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 shrink-0 disabled:opacity-50">
-                      {deletingDomain === fqdn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-                    </button>
+                    {editingDomain === fqdn ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={editDomainValue}
+                          onChange={(e) => setEditDomainValue(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') handleEditRewrite(fqdn); if (e.key === 'Escape') setEditingDomain(null); }}
+                          className="flex-1 px-2 py-0.5 text-sm font-mono border border-blue-400 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                        <button onClick={() => handleEditRewrite(fqdn)} disabled={savingDomain} className="p-1 rounded text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 shrink-0 disabled:opacity-50">
+                          {savingDomain ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                        </button>
+                        <button onClick={() => setEditingDomain(null)} className="p-1 rounded text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 shrink-0">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CheckCircle className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                          <span className="text-sm font-mono text-green-700 dark:text-green-400 truncate">{fqdn}</span>
+                        </div>
+                        <div className="flex items-center gap-0.5 shrink-0">
+                          <button onClick={() => { setEditingDomain(fqdn); setEditDomainValue(fqdn); }} className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button onClick={() => handleDeleteRewrite(fqdn)} disabled={deletingDomain === fqdn} className="p-1 rounded text-red-400 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 disabled:opacity-50">
+                            {deletingDomain === fqdn ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
                 {rewrites.length === 0 && !showAddForm && (
