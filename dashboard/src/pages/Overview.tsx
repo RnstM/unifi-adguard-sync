@@ -23,12 +23,13 @@ import {
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
-import type { AppStatus, SyncResult, Client } from '../types';
+import type { AppStatus, HealthStatus, SyncResult, Client } from '../types';
 import {
   getStatus,
   getMetricsHistory,
   getClients,
   getAccess,
+  getHealth,
   triggerSync,
   stopSync,
   startSync,
@@ -192,6 +193,7 @@ export default function Overview() {
   const [blockedCount, setBlockedCount] = useState(0);
   const [syncLoading, setSyncLoading] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [health, setHealth] = useState<HealthStatus | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -210,6 +212,16 @@ export default function Overview() {
     const id = setInterval(refresh, 10_000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    const poll = async () => {
+      try { setHealth(await getHealth()); }
+      catch { setHealth({ adguard: false, unifi: false }); }
+    };
+    poll();
+    const id = setInterval(poll, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   // Sync controls state
   const syncEnabled = status?.sync_enabled ?? true;
@@ -330,6 +342,29 @@ export default function Overview() {
       <div className="flex flex-wrap items-center gap-2.5 justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Overview</h1>
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Service health indicators */}
+          {(['unifi', 'adguard'] as const).map((svc) => {
+            const ok = health?.[svc];
+            return (
+              <span
+                key={svc}
+                title={`${svc === 'unifi' ? 'UniFi' : 'AdGuard'}: ${ok === undefined ? 'checking…' : ok ? 'reachable' : 'unreachable'}`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                  ok === undefined
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500'
+                    : ok
+                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                    : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                }`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  ok === undefined ? 'bg-gray-300 dark:bg-gray-600' :
+                  ok ? 'bg-green-500' : 'bg-red-500'
+                }`} />
+                {svc === 'unifi' ? 'UniFi' : 'AdGuard'}
+              </span>
+            );
+          })}
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
             syncEnabled
               ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
