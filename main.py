@@ -41,6 +41,7 @@ from sync.config import (
     EXCLUDE_VLANS,
     INCLUDE_VLANS,
     LOG_LEVEL,
+    METRICS_FILE,
     STALE_AFTER_DAYS,
     SYNC_INTERVAL,
 )
@@ -62,6 +63,9 @@ log = logging.getLogger(__name__)
 log_handler = LogCaptureHandler(app_state)
 log_handler.setLevel(logging.DEBUG)
 logging.getLogger().addHandler(log_handler)
+
+# Load persisted sync history
+app_state.load_history(METRICS_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +109,7 @@ def sync_daemon(stop: threading.Event) -> None:
                         state.pop(api_key, None)
                 save_state(state)
             app_state.record_sync(result)
+            app_state.save_history(METRICS_FILE)
         except Exception as exc:
             log.error("Sync failed: %s", exc)
             from datetime import datetime, timezone

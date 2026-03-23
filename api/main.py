@@ -205,6 +205,33 @@ async def api_add_rewrite(payload: dict) -> JSONResponse:
         return JSONResponse({"error": str(exc)}, status_code=500)
 
 
+@app.post("/api/rewrites/update")
+async def api_update_rewrite(payload: dict) -> JSONResponse:
+    from sync.adguard import adguard_add_rewrite, adguard_delete_rewrite
+
+    old_domain = payload.get("old_domain", "")
+    old_ip = payload.get("old_ip", "")
+    new_domain = payload.get("new_domain", "").strip()
+    new_ip = payload.get("new_ip", "").strip()
+    if not all([old_domain, old_ip, new_domain, new_ip]):
+        return JSONResponse({"ok": False, "error": "Missing fields"}, status_code=400)
+    try:
+        adguard_delete_rewrite(old_domain, old_ip, force=True)
+        ok = adguard_add_rewrite(new_domain, new_ip, force=True)
+        if ok:
+            log.info(
+                "Rewrite updated via dashboard: %s → %s (was %s → %s)",
+                new_domain,
+                new_ip,
+                old_domain,
+                old_ip,
+            )
+        return JSONResponse({"ok": ok})
+    except Exception as exc:
+        log.error("Failed to update rewrite: %s", exc)
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
 @app.post("/api/rewrites/delete")
 async def api_delete_rewrite(payload: dict) -> JSONResponse:
     from sync.adguard import adguard_delete_rewrite
@@ -360,7 +387,9 @@ async def set_tag_override(payload: dict) -> JSONResponse:
         return JSONResponse({"ok": False, "message": "ip required"}, status_code=400)
     state = load_state()
     overrides = state.get("tag_overrides", {})
-    new_override = {k: v for k, v in {"device_tag": device_tag, "os_tag": os_tag}.items() if v}
+    new_override = {
+        k: v for k, v in {"device_tag": device_tag, "os_tag": os_tag}.items() if v
+    }
     if new_override:
         overrides[ip] = new_override
     else:
@@ -521,6 +550,8 @@ if static_dir.exists():
         file_path = static_dir / full_path
         if file_path.exists() and file_path.is_file():
             return FileResponse(file_path)
-        return Response(content=(static_dir / "index.html").read_bytes(), media_type="text/html")
+        return Response(
+            content=(static_dir / "index.html").read_bytes(), media_type="text/html"
+        )
 
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

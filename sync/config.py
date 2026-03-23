@@ -32,6 +32,7 @@ EXCLUDE_VLANS: frozenset[int] = frozenset(
 # Stale client cleanup
 STALE_AFTER_DAYS = int(os.environ.get("STALE_AFTER_DAYS", "0"))
 STATE_FILE = Path(os.environ.get("STATE_FILE", "/data/state.json"))
+METRICS_FILE = STATE_FILE.parent / "metrics.json"
 
 # DNS rewrite sync
 DNS_REWRITE_ENABLED = os.environ.get("DNS_REWRITE_ENABLED", "false").lower() == "true"

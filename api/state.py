@@ -2,10 +2,12 @@
 Application state singleton and log capture handler.
 """
 
+import json
 import logging
 import threading
 from collections import deque
 from dataclasses import asdict
+from pathlib import Path
 from typing import Optional
 
 from sync.core import SyncResult
@@ -99,6 +101,26 @@ class AppState:
     def trigger_sync(self) -> None:
         if self._trigger_event is not None:
             self._trigger_event.set()
+
+    def load_history(self, path: Path) -> None:
+        if not path.exists():
+            return
+        try:
+            data = json.loads(path.read_text())
+            with self._lock:
+                for item in data[-self.MAX_HISTORY :]:
+                    self.sync_history.append(SyncResult(**item))
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Could not load metrics: %s", exc)
+
+    def save_history(self, path: Path) -> None:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with self._lock:
+                data = [asdict(r) for r in self.sync_history]
+            path.write_text(json.dumps(data, indent=2))
+        except Exception as exc:
+            logging.getLogger(__name__).warning("Could not save metrics: %s", exc)
 
 
 app_state = AppState()

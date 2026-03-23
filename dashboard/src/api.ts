@@ -63,6 +63,18 @@ export const addRewrite = (domain: string, ip: string): Promise<{ ok: boolean }>
     body: JSON.stringify({ domain, ip }),
   }).then((r) => r.json());
 
+export const updateRewrite = (
+  old_domain: string,
+  old_ip: string,
+  new_domain: string,
+  new_ip: string,
+): Promise<{ ok: boolean }> =>
+  fetch(`${BASE}/rewrites/update`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ old_domain, old_ip, new_domain, new_ip }),
+  }).then((r) => r.json());
+
 export const deleteRewrite = (domain: string, ip: string): Promise<{ ok: boolean }> =>
   fetch(`${BASE}/rewrites/delete`, {
     method: 'POST',
