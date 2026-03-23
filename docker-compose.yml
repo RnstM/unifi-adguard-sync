@@ -1,21 +1,17 @@
 services:
   unifi-adguard-sync:
-    image: ghcr.io/RnstM/unifi-adguard-sync:latest
-    # build: .   # uncomment to build locally
+    image: ghcr.io/rnstm/unifi-adguard-sync:latest
     restart: unless-stopped
-    env_file: .env
     ports:
       - "8888:8888"
-    environment:
-      - DASHBOARD_PORT=8888
     volumes:
-      - unifi-adguard-sync-state:/data
+      - unifi-adguard-sync-data:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/healthz')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8888/api/status')"]
       interval: 60s
       timeout: 5s
       retries: 3
       start_period: 30s
 
 volumes:
-  unifi-adguard-sync-state:
+  unifi-adguard-sync-data:

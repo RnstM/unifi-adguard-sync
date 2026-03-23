@@ -33,13 +33,13 @@ APP_VERSION = os.environ.get("APP_VERSION") or (
 
 app = FastAPI(title="UniFi AdGuard Sync Dashboard", version=APP_VERSION)
 
-# CORS middleware for dev
+# CORS — self-hosted tool, frontend is served from the same origin in production.
+# Wildcard is intentional to support local dev (Vite on a different port).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 

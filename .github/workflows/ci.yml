@@ -11,6 +11,8 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout
@@ -23,7 +25,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install -r requirements.txt ruff
 
       - name: Syntax check
         run: python -m py_compile main.py sync/config.py sync/core.py sync/adguard.py sync/unifi.py sync/tags.py api/main.py api/state.py api/config_store.py
