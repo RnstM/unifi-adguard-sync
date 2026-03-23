@@ -515,4 +515,10 @@ async def healthz() -> JSONResponse:
 # ---------------------------------------------------------------------------
 static_dir = Path(__file__).parent.parent / "dashboard" / "dist"
 if static_dir.exists():
+    # Catch-all: serve index.html for any non-API path so SPA routing works on refresh
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def spa_fallback(full_path: str):
+        index = static_dir / "index.html"
+        return Response(content=index.read_bytes(), media_type="text/html")
+
     app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")

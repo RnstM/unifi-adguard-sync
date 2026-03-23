@@ -144,9 +144,10 @@ def sync(
     now_iso = datetime.now(timezone.utc).isoformat()
     unifi_ips = {c["ip"] for c in unifi_clients_for_sync}
 
-    # Update last_seen for all current UniFi clients
-    for ip in unifi_ips:
-        state[ip] = now_iso
+    # Update last_seen for all current UniFi clients (skip in dry-run to avoid polluting state)
+    if not DRY_RUN:
+        for ip in unifi_ips:
+            state[ip] = now_iso
 
     # Add / update
     for client in unifi_clients_for_sync:
@@ -189,7 +190,8 @@ def sync(
 
             if last_seen_iso is None:
                 # First time we see this orphan — start the grace period clock
-                state[ip] = now_iso
+                if not DRY_RUN:
+                    state[ip] = now_iso
                 log.debug("Stale tracking started for %s (%s)", adg_name, ip)
                 continue
 
