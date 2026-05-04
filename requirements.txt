@@ -2,5 +2,5 @@ requests==2.33.1
 urllib3==2.6.3
 fastapi==0.135.3
 uvicorn==0.44.0
-cryptography==46.0.6
+cryptography==46.0.7
 slowapi==0.1.9
