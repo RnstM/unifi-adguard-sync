@@ -1,5 +1,5 @@
 # Stage 1: Build React frontend
-FROM node:25-slim AS frontend-builder
+FROM node:26-slim AS frontend-builder
 WORKDIR /dashboard
 COPY dashboard/package*.json ./
 RUN npm ci
