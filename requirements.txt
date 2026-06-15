@@ -1,6 +1,6 @@
-requests==2.33.1
-urllib3==2.6.3
-fastapi==0.135.3
-uvicorn==0.44.0
-cryptography==46.0.6
-slowapi==0.1.9
+requests==2.34.2
+urllib3==2.7.0
+fastapi==0.137.1
+uvicorn==0.49.0
+cryptography==49.0.0
+slowapi==0.1.10
